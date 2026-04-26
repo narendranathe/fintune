@@ -61,7 +61,7 @@ class SklearnBaselineBenchmark:
             raise
 
         logger.info("Loading financial_phrasebank dataset...")
-        dataset = load_dataset("takala/financial_phrasebank", "sentences_allagree")
+        dataset = load_dataset("takala/financial_phrasebank", "sentences_allagree", trust_remote_code=True)
 
         texts = dataset["train"]["sentence"]
         labels = dataset["train"]["label"]

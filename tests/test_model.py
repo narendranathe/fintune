@@ -22,7 +22,7 @@ class TestLoRAConfig:
     def test_custom_targets(self):
         targets = ["q_proj", "v_proj"]
         config = build_lora_config(target_modules=targets)
-        assert list(config.target_modules) == targets
+        assert set(config.target_modules) == set(targets)
 
 
 class TestQuantizationConfig:

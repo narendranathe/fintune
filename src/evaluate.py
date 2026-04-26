@@ -38,7 +38,7 @@ def evaluate_model(
     )
 
     dataset = load_dataset(
-        "takala/financial_phrasebank", "sentences_allagree",
+        "takala/financial_phrasebank", "sentences_allagree", trust_remote_code=True,
     )
     splits = dataset["train"].train_test_split(test_size=0.2, seed=42, stratify_by_column="label")
     test_data = splits[dataset_split]

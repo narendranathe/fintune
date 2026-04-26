@@ -33,6 +33,7 @@ def load_financial_phrasebank(
     dataset = load_dataset(
         "takala/financial_phrasebank",
         agreement_level,
+        trust_remote_code=True,
     )
 
     # Dataset ships as a single 'train' split — we create our own test set
