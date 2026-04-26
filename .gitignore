@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+outputs/
+.venv/
+*.pt
+*.safetensors
+*.bin
+.ruff_cache/

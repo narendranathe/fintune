@@ -1,0 +1,33 @@
+model:
+  name: "mistralai/Mistral-7B-v0.3"
+  max_length: 512
+
+quantization:
+  load_in_4bit: true
+  bnb_4bit_quant_type: "nf4"
+  bnb_4bit_compute_dtype: "bfloat16"
+  use_double_quant: true
+
+lora:
+  r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+
+training:
+  output_dir: "outputs/fintune-financial"
+  epochs: 3
+  batch_size: 8
+  eval_batch_size: 16
+  gradient_accumulation: 4
+  learning_rate: 2e-4
+  scheduler: "cosine"
+  warmup_ratio: 0.06
+  weight_decay: 0.01
+  bf16: true
+  eval_steps: 50
+  save_steps: 50

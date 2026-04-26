@@ -1,0 +1,17 @@
+services:
+  fintune-api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - FINTUNE_MODEL_PATH=/app/outputs/fintune-financial
+    volumes:
+      - ./outputs:/app/outputs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped

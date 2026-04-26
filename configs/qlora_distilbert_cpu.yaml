@@ -1,0 +1,33 @@
+# CPU-compatible config using DistilBERT for rapid prototyping
+# Use this for local testing without GPU
+model:
+  name: "distilbert-base-uncased"
+  max_length: 256
+
+quantization:
+  load_in_4bit: false
+  bnb_4bit_quant_type: "nf4"
+  bnb_4bit_compute_dtype: "float32"
+  use_double_quant: false
+
+lora:
+  r: 8
+  lora_alpha: 16
+  lora_dropout: 0.1
+  target_modules:
+    - q_lin
+    - v_lin
+
+training:
+  output_dir: "outputs/fintune-distilbert-cpu"
+  epochs: 5
+  batch_size: 16
+  eval_batch_size: 32
+  gradient_accumulation: 1
+  learning_rate: 5e-4
+  scheduler: "cosine"
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  bf16: false
+  eval_steps: 25
+  save_steps: 25
