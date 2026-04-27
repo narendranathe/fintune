@@ -1,95 +1,110 @@
-# FinTune — Production-Grade Financial NLP with QLoRA Fine-Tuning
+# FinTune
 
-End-to-end ML system for financial text sentiment classification: QLoRA fine-tuning on Mistral-7B, 4-bit quantized inference, AI guardrails, real-time monitoring, self-recovery, and FastAPI serving — built for production at scale.
+Domain-tuned language model for financial sentiment, with the production primitives that make it deployable.
 
-## Architecture
+---
 
-```
-┌─────────────┐    ┌──────────────┐    ┌───────────────┐    ┌──────────────┐
-│  Financial   │───▶│  QLoRA       │───▶│  Quantized    │───▶│  FastAPI      │
-│  Dataset     │    │  Fine-Tune   │    │  Inference    │    │  + Guardrails │
-│  (HF Hub)    │    │  (PEFT)      │    │  (4-bit NF4)  │    │  + Monitoring │
-└─────────────┘    └──────────────┘    └───────────────┘    └──────────────┘
-       │                  │                    │                    │
-   Data Pipeline     PyTorch + HF        bitsandbytes      Circuit Breaker
-   + Quality QA      Transformers        double quant       Self-Recovery
-   + Dedup           LoRA r=16/α=32      ~4x compression    Real-time Metrics
-```
+## Why this exists
 
-## Key Capabilities
+Generic LLMs are a poor fit for financial NLP, in three specific ways that matter for production:
 
-| Domain | Implementation |
-|---|---|
-| **Fine-Tuning** | QLoRA (4-bit NF4) with PEFT LoRA adapters on Mistral-7B attention layers |
-| **Training** | HF Trainer, cosine scheduler, paged AdamW 8-bit, early stopping, gradient checkpointing |
-| **Data Pipeline** | Streaming loader, quality validation, deduplication, stratified sampling, caching |
-| **Evaluation** | Per-class F1/precision/recall, confusion matrix, latency benchmarks (p50/p95/p99) |
-| **Quantization** | Post-training 4-bit/8-bit via bitsandbytes for ~4x VRAM reduction |
-| **AI Guardrails** | PII redaction (SSN, CC, email, phone), confidence thresholding, output validation |
-| **Monitoring** | Real-time health scoring, latency histograms, drift detection (KL-divergence), throughput tracking |
-| **Self-Recovery** | Circuit breaker pattern, auto model reload, OOM batch reduction, fallback model switching |
-| **Serving** | FastAPI with `/predict`, `/predict/batch`, `/health`, `/metrics` endpoints |
-| **Baselines** | Sklearn benchmarks (TF-IDF + LogReg/RF/SVM) for comparison metrics |
-| **DevOps** | Docker + docker-compose (GPU), GitHub Actions CI (lint + test + build) |
-| **Testing** | 35+ test cases covering data, model, guardrails, API, monitoring, recovery, pipeline |
+1. **They hallucinate financial facts.** A general-purpose model has no calibration on phrasing like "guidance cut," "write-down," or "earnings beat." It will read "guidance" as the noun and miss that "cut guidance" is unambiguously negative.
+2. **They leak PII.** Account numbers, SSNs, and customer emails routinely pass through inference logs, metrics, and prompt traces. Under GLBA / GDPR that's a breach.
+3. **They have no fault model.** A standard `transformers.pipeline()` deployed behind FastAPI has no circuit breaker, no drift detection, no batch-size adaptation under OOM, no health score for orchestrators to route on. The first bad input puts the service into a permanent failure loop.
 
-## Quick Start
+FinTune is a small reference implementation that addresses all three: a domain-fine-tuned classifier with **pre-inference PII redaction**, **a 3-state circuit breaker**, **KL-divergence drift monitoring**, and **autonomous recovery actions** (model reload, batch-size reduction, fallback-to-quantized).
 
-### Option 1: Full GPU Training (Recommended)
+---
+
+## What it does
+
+Fine-tunes a base language model on the public **financial_phrasebank** corpus (Malo et al., 2014) for 3-class sentiment classification (`positive` / `neutral` / `negative`), using **QLoRA** (4-bit NF4 quantization + LoRA adapters) so the whole training run fits on a single consumer GPU. Then serves the merged model behind a FastAPI endpoint that wraps every prediction in pre-inference guardrails, real-time monitoring, and a self-recovery layer.
+
+---
+
+## Results
+
+> Numbers below are placeholders to be filled by the next pipeline run on this branch. See `specs/README.md` for the result-collection protocol.
+
+**QLoRA fine-tune (Mistral-7B-v0.3, financial_phrasebank `sentences_allagree`, stratified 80/20 split, seed 42):**
+
+| Metric | Value |
+|--------|-------|
+| F1 (macro) | `{RESULT_F1_MACRO}` |
+| Accuracy | `{RESULT_ACCURACY}` |
+| Precision (macro) | `{RESULT_PRECISION_MACRO}` |
+| Recall (macro) | `{RESULT_RECALL_MACRO}` |
+| Eval loss | `{RESULT_EVAL_LOSS}` |
+| Training time | `{RESULT_TRAIN_TIME}` |
+| Hardware | `{RESULT_HARDWARE}` |
+
+**Per-class F1:**
+
+| Class | F1 |
+|-------|-----|
+| negative | `{RESULT_F1_NEGATIVE}` |
+| neutral  | `{RESULT_F1_NEUTRAL}` |
+| positive | `{RESULT_F1_POSITIVE}` |
+
+**Inference latency (merged model, 4-bit NF4, single sample, no batching):**
+
+| Percentile | Latency |
+|------------|---------|
+| p50 | `{RESULT_P50_MS}` ms |
+| p95 | `{RESULT_P95_MS}` ms |
+| p99 | `{RESULT_P99_MS}` ms |
+
+**Sklearn baselines (TF-IDF + classifier, same split, CPU only):**
+
+| Baseline | F1 (macro) | Accuracy |
+|----------|-----------|----------|
+| TF-IDF + LogisticRegression | `{RESULT_BASELINE_LR_F1}` | `{RESULT_BASELINE_LR_ACC}` |
+| TF-IDF + RandomForest | `{RESULT_BASELINE_RF_F1}` | `{RESULT_BASELINE_RF_ACC}` |
+| TF-IDF + LinearSVC | `{RESULT_BASELINE_SVC_F1}` | `{RESULT_BASELINE_SVC_ACC}` |
+
+References: Dettmers et al., "QLoRA: Efficient Finetuning of Quantized LLMs" (NeurIPS 2023). Malo, Sinha, Korhonen, Wallenius, Takala, "Good debt or bad debt: Detecting semantic orientations in economic texts," *JASIST* 65(4), 2014.
+
+---
+
+## How to run it
+
+### One command (Docker, CPU or GPU)
 
 ```bash
-git clone https://github.com/narendranathe/fintune.git
-cd fintune
+docker-compose up --build
+# API at http://localhost:8000  ·  health: GET /health  ·  metrics: GET /metrics
+```
+
+### Train + evaluate locally (GPU, ~15 min on a T4)
+
+```bash
 pip install -r requirements.txt
-
-# Run full pipeline: tests → benchmark → train → evaluate → quantize
-bash scripts/run_local_gpu.sh
-
-# Or on Windows with PowerShell:
-.\scripts\run_local_gpu.ps1
-```
-
-### Option 2: CPU Baseline Benchmark
-
-```bash
-# Produces real metrics without GPU using sklearn
-python -m src.benchmark
-# Results saved to outputs/benchmark_results.json
-```
-
-### Option 3: QLoRA Training Only
-
-```bash
 python -m src.train --config configs/qlora_config.yaml
 python -m src.evaluate --model-path outputs/fintune-financial --dataset test
 ```
 
-### Option 4: Docker Deployment
+### CPU prototype run (DistilBERT, no GPU required)
 
 ```bash
-docker-compose up --build
-# API available at http://localhost:8000
-# Health check: GET /health
-# Metrics: GET /metrics
+pip install -r requirements.txt
+python -m src.train --config configs/qlora_distilbert_cpu.yaml
 ```
 
-## API Endpoints
+### Sklearn baselines (no model training, ~30 sec)
 
-| Endpoint | Method | Description |
-|---|---|---|
-| `/predict` | POST | Single text classification with guardrails |
-| `/predict/batch` | POST | Batch prediction for throughput workloads |
-| `/health` | GET | Health check with monitoring metrics, circuit breaker state |
-| `/metrics` | GET | Full system metrics export for dashboards |
+```bash
+python -m src.benchmark
+# → outputs/benchmark_results.json
+```
 
-**Example:**
+### Single prediction
+
 ```bash
 curl -X POST http://localhost:8000/predict \
   -H "Content-Type: application/json" \
-  -d '{"text": "Revenue increased 20% year-over-year", "confidence_threshold": 0.7}'
+  -d '{"text": "Q3 revenue beat consensus by 8%; guidance raised for FY.", "confidence_threshold": 0.7}'
 ```
 
-**Response:**
 ```json
 {
   "label": "positive",
@@ -101,76 +116,52 @@ curl -X POST http://localhost:8000/predict \
 }
 ```
 
-## Project Structure
+---
+
+## Architecture
 
 ```
-fintune/
-├── src/
-│   ├── __init__.py          # Package init, version 0.2.0
-│   ├── data.py              # HF dataset loading, tokenization, stratified split
-│   ├── data_pipeline.py     # Streaming loader, quality validation, dedup, caching
-│   ├── model.py             # QLoRA config, BitsAndBytes 4-bit, PEFT LoRA adapters
-│   ├── train.py             # Full training pipeline with HF Trainer
-│   ├── evaluate.py          # Per-class metrics, confusion matrix, latency benchmarks
-│   ├── quantize.py          # Post-training 4-bit/8-bit quantization
-│   ├── guardrails.py        # PII redaction, confidence thresholding, audit logging
-│   ├── serve.py             # FastAPI with monitoring + circuit breaker integration
-│   ├── monitor.py           # Real-time health scoring, drift detection, metrics export
-│   ├── self_recovery.py     # Circuit breaker, auto-remediation, graceful degradation
-│   └── benchmark.py         # Sklearn baselines (TF-IDF + LogReg/RF/SVC)
-├── configs/
-│   ├── qlora_config.yaml          # Mistral-7B QLoRA config (GPU)
-│   └── qlora_distilbert_cpu.yaml  # DistilBERT config (CPU testing)
-├── tests/
-│   ├── test_data.py
-│   ├── test_model.py
-│   ├── test_guardrails.py
-│   ├── test_serve.py
-│   ├── test_monitor.py
-│   ├── test_self_recovery.py
-│   └── test_data_pipeline.py
-├── scripts/
-│   ├── run_train.sh         # Original training script
-│   ├── run_local_gpu.sh     # Full pipeline runner (Linux/WSL)
-│   └── run_local_gpu.ps1    # Full pipeline runner (Windows)
-├── Dockerfile
-├── docker-compose.yml
-├── requirements.txt
-├── .github/workflows/ci.yml
-└── README.md
+financial_         QLoRA            Merged model         Quantized          FastAPI
+phrasebank   ───▶  fine-tune  ───▶  (LoRA folded   ───▶ inference   ───▶   /predict
+(HF Hub)           (PEFT)           into base)          (4-bit NF4)        /health
+                                                                           /metrics
+                                                                              │
+                                                                              ▼
+                                                          Pre-inference guardrails
+                                                          (PII redact, confidence,
+                                                           label validation)
+                                                                              │
+                                                                              ▼
+                                                          SystemMonitor + RecoveryManager
+                                                          (latency p50/p95/p99,
+                                                           KL-divergence drift,
+                                                           3-state circuit breaker,
+                                                           OOM → batch reduction)
 ```
 
-## System Design: Self-Recovery & Monitoring
+Full per-decision rationale and trade-offs in [`specs/README.md`](specs/README.md). Domain glossary in [`UBIQUITOUS_LANGUAGE.md`](UBIQUITOUS_LANGUAGE.md).
 
-### Circuit Breaker Pattern
-The inference endpoint uses a three-state circuit breaker (CLOSED → OPEN → HALF_OPEN → CLOSED) that prevents cascading failures. When error rate exceeds threshold, the circuit opens and returns 503, allowing the system to recover autonomously.
+---
 
-### Real-Time Monitoring
-`SystemMonitor` tracks latency percentiles, throughput, error rates, and prediction distribution in sliding windows. A composite health score (0-100) drives alerting. Model drift detection uses KL-divergence between current prediction distribution and baseline.
+## Tech stack
 
-### Autonomous Recovery
-`RecoveryManager` handles:
-- **Model loading failures** → Retry with exponential backoff, fallback to quantized model
-- **Latency spikes** → Switch to lighter quantized model
-- **OOM errors** → Dynamically reduce batch size
-- **Quality degradation** → Trigger model reload from checkpoint
+| Layer | Choice | Why |
+|-------|--------|-----|
+| Base model (GPU config) | `mistralai/Mistral-7B-v0.3` | Strong open-weight 7B with permissive license |
+| Base model (CPU config) | `distilbert-base-uncased` | Lets contributors run the full pipeline without a GPU |
+| Fine-tuning | QLoRA via `peft` + `bitsandbytes` | ~10× VRAM savings vs. full fine-tune; <2% F1 loss in practice |
+| Training corpus | `takala/financial_phrasebank` (`sentences_allagree`) | Public, expert-annotated, 100% annotator agreement subset |
+| Training framework | HuggingFace `Trainer` | F1-macro best-checkpoint selection, early stopping (patience 3) |
+| Optimizer | `paged_adamw_8bit` | Required for QLoRA; pages optimizer state to CPU |
+| Serving | FastAPI + Uvicorn | Async, Pydantic validation, lifespan-managed model load |
+| Guardrails | Regex-based PII redaction | Pre-inference, fails to over-redact rather than leak; `presidio-analyzer` pinned for v0.3 swap |
+| Observability | Custom `SystemMonitor` (singleton) | Latency percentiles, throughput, error rate, KL-divergence drift, composite health score |
+| Self-recovery | `RecoveryManager` + 3-state `CircuitBreaker` | Exponential-backoff reload, OOM batch reduction, latency-spike → quantized fallback |
+| Quantization | bitsandbytes NF4 + double quantization | Used both during training (QLoRA) and post-training (`src/quantize.py`) |
+| Container | `nvidia/cuda:12.1.1-runtime-ubuntu22.04` | GPU-capable; `docker-compose.yml` reserves 1 NVIDIA device |
+| Tests | `pytest` (35+ cases across 7 modules) | Covers data, model, guardrails, serve, monitor, self-recovery, pipeline |
 
-## Dataset
-
-Uses **financial_phrasebank** (Malo et al., 2014) from Hugging Face Hub — 4,845 financial news sentences with sentiment labels (positive/neutral/negative). All-agree subset used for highest annotation quality.
-
-## Hardware Requirements
-
-| Mode | Requirements | Time |
-|---|---|---|
-| **Sklearn Baseline** | CPU only, 4GB RAM | ~30 seconds |
-| **QLoRA Fine-Tuning** | 1x GPU, ≥4GB VRAM | ~15 min on T4 |
-| **Quantized Inference** | CPU or GPU | <50ms per request |
-| **Docker Deployment** | NVIDIA Container Toolkit | Instant after build |
-
-## Technologies
-
-PyTorch, Hugging Face (Transformers, PEFT, Datasets, Evaluate, TRL), bitsandbytes, QLoRA, LoRA, Scikit-learn, FastAPI, Docker, GitHub Actions, Pydantic
+---
 
 ## License
 
