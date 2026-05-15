@@ -1,6 +1,5 @@
 """Tests for data loading and tokenization."""
 
-import pytest
 from src.data import LABEL_MAP, ID_TO_LABEL, NUM_LABELS
 
 

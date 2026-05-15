@@ -192,7 +192,7 @@ class DataPipeline:
         self.stats.samples_after_validation = len(texts)
 
         if labels:
-            labels = [l for t, l in zip(
+            labels = [label for t, label in zip(
                 [t for t in range(len(texts))],
                 labels
             ) if t < len(texts)]
@@ -356,8 +356,8 @@ class TestStratifiedSampling(unittest.TestCase):
         )
 
         # Should have 14 A's and 6 B's (approximately)
-        a_count = sampled_labels.count("A")
-        b_count = sampled_labels.count("B")
+        sampled_labels.count("A")
+        sampled_labels.count("B")
 
         # Verify ratio preservation with tolerance
         is_preserved = StratifiedSampler.verify_ratio_preservation(
@@ -387,7 +387,7 @@ class TestStratifiedSampling(unittest.TestCase):
         )
 
         self.assertEqual(len(sampled_texts), 5)
-        self.assertTrue(all(l == "A" for l in sampled_labels))
+        self.assertTrue(all(label == "A" for label in sampled_labels))
 
 
 class TestPipelineStats(unittest.TestCase):

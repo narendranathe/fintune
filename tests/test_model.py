@@ -1,6 +1,5 @@
 """Tests for model configuration and LoRA setup."""
 
-import pytest
 from peft import LoraConfig, TaskType
 from src.model import build_lora_config, build_quantization_config
 

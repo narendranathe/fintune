@@ -4,7 +4,6 @@ Tests for self-recovery system including CircuitBreaker and RecoveryPolicy.
 
 import unittest
 import time
-from unittest.mock import patch, MagicMock
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import List

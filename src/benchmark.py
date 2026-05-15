@@ -9,7 +9,7 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
@@ -311,13 +311,13 @@ class SklearnBaselineBenchmark:
 
             # Macro/weighted averages
             if "macro avg" in class_report:
-                f.write(f"\nMacro Average:\n")
+                f.write("\nMacro Average:\n")
                 f.write(f"  Precision: {class_report['macro avg'].get('precision', 0):.4f}\n")
                 f.write(f"  Recall:    {class_report['macro avg'].get('recall', 0):.4f}\n")
                 f.write(f"  F1-Score:  {class_report['macro avg'].get('f1-score', 0):.4f}\n")
 
             if "weighted avg" in class_report:
-                f.write(f"\nWeighted Average:\n")
+                f.write("\nWeighted Average:\n")
                 f.write(f"  Precision: {class_report['weighted avg'].get('precision', 0):.4f}\n")
                 f.write(f"  Recall:    {class_report['weighted avg'].get('recall', 0):.4f}\n")
                 f.write(f"  F1-Score:  {class_report['weighted avg'].get('f1-score', 0):.4f}\n")

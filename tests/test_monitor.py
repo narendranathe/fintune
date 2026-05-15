@@ -4,8 +4,7 @@ Tests for the monitoring system including SystemMonitor, metrics, and drift dete
 
 import unittest
 import threading
-import time
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 from collections import deque
 
 # Assuming these are the actual modules to test
@@ -69,7 +68,8 @@ class TestSystemMonitor(unittest.TestCase):
 
     def test_health_score_varies_with_errors(self):
         """Test that health score decreases with error count."""
-        compute_health = lambda errors: max(0, 1.0 - (errors * 0.1))
+        def compute_health(errors):
+            return max(0, 1.0 - (errors * 0.1))
 
         score_no_errors = compute_health(0)
         score_with_errors = compute_health(5)
