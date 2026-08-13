@@ -2,7 +2,8 @@
 
 import pytest
 from pydantic import ValidationError
-from src.serve import PredictRequest, PredictResponse, HealthResponse
+
+from src.serve import HealthResponse, PredictRequest, PredictResponse
 
 
 class TestPredictRequest:

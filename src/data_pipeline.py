@@ -5,14 +5,13 @@ validation, and preprocessing optimizations for downstream ML tasks.
 """
 
 import logging
-import os
 import pickle
 import threading
 import time
 from collections import Counter, defaultdict
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import psutil
 
@@ -36,9 +35,9 @@ class DataQualityValidator:
             similarity_threshold: SequenceMatcher similarity threshold for duplicates.
         """
         self.similarity_threshold = similarity_threshold
-        self.report: Dict[str, Any] = {}
+        self.report: dict[str, Any] = {}
 
-    def check_empty_or_null(self, texts: List[str]) -> Tuple[int, List[int]]:
+    def check_empty_or_null(self, texts: list[str]) -> tuple[int, list[int]]:
         """Check for empty or null text entries.
 
         Args:
@@ -50,7 +49,7 @@ class DataQualityValidator:
         empty_indices = [i for i, text in enumerate(texts) if not text or text.strip() == ""]
         return len(empty_indices), empty_indices
 
-    def detect_duplicates(self, texts: List[str]) -> Tuple[int, Dict[int, List[int]]]:
+    def detect_duplicates(self, texts: list[str]) -> tuple[int, dict[int, list[int]]]:
         """Detect duplicate or near-duplicate sentences using fuzzy matching.
 
         Args:
@@ -59,7 +58,7 @@ class DataQualityValidator:
         Returns:
             Tuple of (number of duplicates found, dict mapping indices to duplicate indices).
         """
-        duplicate_groups: Dict[int, List[int]] = defaultdict(list)
+        duplicate_groups: dict[int, list[int]] = defaultdict(list)
         seen_indices = set()
 
         for i in range(len(texts)):
@@ -79,8 +78,8 @@ class DataQualityValidator:
         return total_duplicates, dict(duplicate_groups)
 
     def validate_label_distribution(
-        self, labels: List[str], imbalance_threshold: float = 10.0
-    ) -> Tuple[bool, Dict[str, Any]]:
+        self, labels: list[str], imbalance_threshold: float = 10.0
+    ) -> tuple[bool, dict[str, Any]]:
         """Check label distribution and alert on severe class imbalance.
 
         Args:
@@ -119,8 +118,8 @@ class DataQualityValidator:
         return is_balanced, distribution_info
 
     def check_text_length_distribution(
-        self, texts: List[str], percentile_threshold: float = 0.95
-    ) -> Dict[str, Any]:
+        self, texts: list[str], percentile_threshold: float = 0.95
+    ) -> dict[str, Any]:
         """Analyze text length distribution and flag outliers.
 
         Args:
@@ -159,8 +158,8 @@ class DataQualityValidator:
         }
 
     def generate_report(
-        self, texts: List[str], labels: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
+        self, texts: list[str], labels: list[str] | None = None
+    ) -> dict[str, Any]:
         """Generate comprehensive data quality report.
 
         Args:
@@ -217,7 +216,7 @@ class DataPipelineOptimizer:
     - Disk caching with pickle/parquet
     """
 
-    def __init__(self, cache_dir: Optional[str] = None):
+    def __init__(self, cache_dir: str | None = None):
         """Initialize the optimizer.
 
         Args:
@@ -266,8 +265,8 @@ class DataPipelineOptimizer:
         return text.strip()
 
     def deduplicate_texts(
-        self, texts: List[str], similarity_threshold: float = 0.95
-    ) -> Tuple[List[str], List[int]]:
+        self, texts: list[str], similarity_threshold: float = 0.95
+    ) -> tuple[list[str], list[int]]:
         """Remove duplicate texts using fuzzy matching.
 
         Args:
@@ -294,8 +293,8 @@ class DataPipelineOptimizer:
         return deduplicated, kept_indices
 
     def stratified_sample(
-        self, texts: List[str], labels: List[str], sample_fraction: float = 0.8
-    ) -> Tuple[List[str], List[str], List[int]]:
+        self, texts: list[str], labels: list[str], sample_fraction: float = 0.8
+    ) -> tuple[list[str], list[str], list[int]]:
         """Perform stratified sampling for balanced training sets.
 
         Args:
@@ -309,7 +308,7 @@ class DataPipelineOptimizer:
         from collections import defaultdict
 
         # Group by label
-        label_groups: Dict[str, List[int]] = defaultdict(list)
+        label_groups: dict[str, list[int]] = defaultdict(list)
         for i, label in enumerate(labels):
             label_groups[label].append(i)
 
@@ -391,7 +390,7 @@ class DataPipelineOptimizer:
         logger.info(f"Cached data to {filepath}")
         return str(filepath)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get pipeline execution statistics.
 
         Returns:
@@ -404,15 +403,15 @@ class DataPipelineOptimizer:
 
     def process_pipeline(
         self,
-        texts: List[str],
-        labels: Optional[List[str]] = None,
+        texts: list[str],
+        labels: list[str] | None = None,
         clean: bool = True,
         deduplicate: bool = True,
         sample: bool = False,
         sample_fraction: float = 0.8,
         cache: bool = False,
         cache_filename: str = "processed_data",
-    ) -> Tuple[List[str], Optional[List[str]]]:
+    ) -> tuple[list[str], list[str] | None]:
         """Execute full preprocessing pipeline.
 
         Args:
@@ -470,9 +469,9 @@ class StreamingDataLoader:
 
     def __init__(
         self,
-        texts: List[str],
-        labels: Optional[List[str]] = None,
-        batch_size: Optional[int] = None,
+        texts: list[str],
+        labels: list[str] | None = None,
+        batch_size: int | None = None,
         auto_batch_size: bool = True,
     ):
         """Initialize streaming data loader.
@@ -494,7 +493,7 @@ class StreamingDataLoader:
         else:
             self.batch_size = 32
 
-        self._prefetch_queue: Optional[Tuple] = None
+        self._prefetch_queue: tuple | None = None
         self._stop_prefetch = False
 
     def _calculate_optimal_batch_size(self) -> int:
@@ -519,7 +518,7 @@ class StreamingDataLoader:
             logger.warning(f"Failed to auto-detect batch size: {e}, using default=32")
             return 32
 
-    def _prefetch_worker(self, batch_indices: List[int]) -> None:
+    def _prefetch_worker(self, batch_indices: list[int]) -> None:
         """Background thread worker for prefetching.
 
         Args:

@@ -1,7 +1,11 @@
 """Tests for AI guardrails: PII redaction, confidence checks, validation."""
 
-import pytest
-from src.guardrails import apply_guardrails, redact_pii, check_confidence, validate_output
+from src.guardrails import (
+    apply_guardrails,
+    check_confidence,
+    redact_pii,
+    validate_output,
+)
 
 
 class TestPIIRedaction:

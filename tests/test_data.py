@@ -1,7 +1,6 @@
 """Tests for data loading and tokenization."""
 
-import pytest
-from src.data import LABEL_MAP, ID_TO_LABEL, NUM_LABELS
+from src.data import ID_TO_LABEL, LABEL_MAP, NUM_LABELS
 
 
 def test_label_map_consistency():

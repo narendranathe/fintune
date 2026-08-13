@@ -2,9 +2,8 @@
 Tests for data pipeline including validation, cleaning, sampling, and stats tracking.
 """
 
-import unittest
 import re
-from typing import List, Tuple
+import unittest
 from dataclasses import dataclass
 
 
@@ -28,12 +27,10 @@ class DataQualityValidator:
         """Validate that text is not empty and meets basic criteria."""
         if not text or not isinstance(text, str):
             return False
-        if text.strip() == "":
-            return False
-        return True
+        return text.strip() != ""
 
     @staticmethod
-    def validate_batch(texts: List[str]) -> Tuple[List[str], int]:
+    def validate_batch(texts: list[str]) -> tuple[list[str], int]:
         """Validate a batch of texts, return valid texts and failure count."""
         valid_texts = []
         failures = 0
@@ -51,7 +48,7 @@ class DuplicateDetector:
     """Detect and remove duplicate texts."""
 
     @staticmethod
-    def remove_duplicates(texts: List[str]) -> Tuple[List[str], int]:
+    def remove_duplicates(texts: list[str]) -> tuple[list[str], int]:
         """Remove duplicates from text list."""
         seen = set()
         unique_texts = []
@@ -92,7 +89,7 @@ class TextCleaner:
         return text
 
     @staticmethod
-    def clean_batch(texts: List[str]) -> List[str]:
+    def clean_batch(texts: list[str]) -> list[str]:
         """Clean a batch of texts."""
         return [TextCleaner.clean(text) for text in texts]
 
@@ -102,10 +99,10 @@ class StratifiedSampler:
 
     @staticmethod
     def stratified_sample(
-        texts: List[str],
-        labels: List[str],
+        texts: list[str],
+        labels: list[str],
         sample_size: int
-    ) -> Tuple[List[str], List[str]]:
+    ) -> tuple[list[str], list[str]]:
         """
         Perform stratified sampling to preserve label distribution.
         """
@@ -138,8 +135,8 @@ class StratifiedSampler:
 
     @staticmethod
     def verify_ratio_preservation(
-        original_labels: List[str],
-        sampled_labels: List[str],
+        original_labels: list[str],
+        sampled_labels: list[str],
         tolerance: float = 0.1
     ) -> bool:
         """Verify that label ratios are preserved within tolerance."""
@@ -156,8 +153,8 @@ class StratifiedSampler:
             return False
 
         # Check ratios within tolerance
-        for label in original_ratios:
-            diff = abs(original_ratios[label] - sampled_ratios[label])
+        for label, original_ratio in original_ratios.items():
+            diff = abs(original_ratio - sampled_ratios[label])
             if diff > tolerance:
                 return False
 
@@ -172,10 +169,10 @@ class DataPipeline:
 
     def process(
         self,
-        texts: List[str],
-        labels: List[str] = None,
-        sample_size: int = None
-    ) -> Tuple[List[str], List[str], PipelineStats]:
+        texts: list[str],
+        labels: list[str] | None = None,
+        sample_size: int | None = None
+    ) -> tuple[list[str], list[str], PipelineStats]:
         """
         Process data through complete pipeline:
         1. Validation
@@ -351,13 +348,13 @@ class TestStratifiedSampling(unittest.TestCase):
         texts = ["text_" + str(i) for i in range(100)]
         labels = ["A"] * 70 + ["B"] * 30
 
-        sampled_texts, sampled_labels = StratifiedSampler.stratified_sample(
+        _sampled_texts, sampled_labels = StratifiedSampler.stratified_sample(
             texts, labels, sample_size=20
         )
 
         # Should have 14 A's and 6 B's (approximately)
-        a_count = sampled_labels.count("A")
-        b_count = sampled_labels.count("B")
+        sampled_labels.count("A")
+        sampled_labels.count("B")
 
         # Verify ratio preservation with tolerance
         is_preserved = StratifiedSampler.verify_ratio_preservation(
@@ -412,12 +409,13 @@ class TestPipelineStats(unittest.TestCase):
         ]
 
         pipeline = DataPipeline()
-        result_texts, _, stats = pipeline.process(texts)
+        _result_texts, _, stats = pipeline.process(texts)
 
         self.assertEqual(stats.total_samples, 5)
         self.assertEqual(stats.validation_failures, 1)  # empty string
+        self.assertEqual(stats.samples_after_validation, 4)
         self.assertEqual(stats.duplicates_removed, 1)    # one duplicate
-        self.assertEqual(stats.samples_after_cleaning, 4)
+        self.assertEqual(stats.samples_after_cleaning, 3)
 
     def test_stats_with_sampling(self):
         """Test stats tracking with sampling."""
@@ -425,7 +423,7 @@ class TestPipelineStats(unittest.TestCase):
         labels = ["A"] * 10 + ["B"] * 10
 
         pipeline = DataPipeline()
-        result_texts, result_labels, stats = pipeline.process(
+        _result_texts, _result_labels, stats = pipeline.process(
             texts, labels, sample_size=10
         )
 

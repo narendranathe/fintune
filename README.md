@@ -1,72 +1,72 @@
 # FinTune
 
-Domain-tuned language model for financial sentiment, with the production primitives that make it deployable.
+QLoRA fine-tuned Mistral-7B for financial sentiment, served behind FastAPI with pre-inference PII redaction, a 3-state circuit breaker, and KL-divergence drift monitoring. The model is the easy part; this repo is about the machinery that makes a checkpoint deployable in a regulated environment.
 
 ---
 
-## Why this exists
+## The engineering problem
 
-Generic LLMs are a poor fit for financial NLP, in three specific ways that matter for production:
+A stock `transformers.pipeline()` behind FastAPI fails in three ways that matter in finance:
 
-1. **They hallucinate financial facts.** A general-purpose model has no calibration on phrasing like "guidance cut," "write-down," or "earnings beat." It will read "guidance" as the noun and miss that "cut guidance" is unambiguously negative.
-2. **They leak PII.** Account numbers, SSNs, and customer emails routinely pass through inference logs, metrics, and prompt traces. Under GLBA / GDPR that's a breach.
-3. **They have no fault model.** A standard `transformers.pipeline()` deployed behind FastAPI has no circuit breaker, no drift detection, no batch-size adaptation under OOM, no health score for orchestrators to route on. The first bad input puts the service into a permanent failure loop.
+1. **It leaks PII.** Account numbers, SSNs, and customer emails pass through inference logs, metrics, and prompt traces. Under GLBA / GDPR that is a reportable breach, not a bug.
+2. **It has no fault model.** No circuit breaker, no drift detection, no batch-size adaptation under OOM. One bad input can wedge the service into a permanent failure loop with no signal to the orchestrator.
+3. **It is not calibrated for the domain.** A general-purpose model reads "guidance" as a neutral noun and misses that "cut guidance" is unambiguously negative.
 
-FinTune is a small reference implementation that addresses all three: a domain-fine-tuned classifier with **pre-inference PII redaction**, **a 3-state circuit breaker**, **KL-divergence drift monitoring**, and **autonomous recovery actions** (model reload, batch-size reduction, fallback-to-quantized).
-
----
-
-## What it does
-
-Fine-tunes a base language model on the public **financial_phrasebank** corpus (Malo et al., 2014) for 3-class sentiment classification (`positive` / `neutral` / `negative`), using **QLoRA** (4-bit NF4 quantization + LoRA adapters) so the whole training run fits on a single consumer GPU. Then serves the merged model behind a FastAPI endpoint that wraps every prediction in pre-inference guardrails, real-time monitoring, and a self-recovery layer.
+FinTune addresses each with a specific mechanism, not a wrapper.
 
 ---
 
-## Results
+## Mechanisms
 
-> Numbers below are placeholders to be filled by the next pipeline run on this branch. See `specs/README.md` for the result-collection protocol.
-
-**QLoRA fine-tune (Mistral-7B-v0.3, financial_phrasebank `sentences_allagree`, stratified 80/20 split, seed 42):**
-
-| Metric | Value |
-|--------|-------|
-| F1 (macro) | `{RESULT_F1_MACRO}` |
-| Accuracy | `{RESULT_ACCURACY}` |
-| Precision (macro) | `{RESULT_PRECISION_MACRO}` |
-| Recall (macro) | `{RESULT_RECALL_MACRO}` |
-| Eval loss | `{RESULT_EVAL_LOSS}` |
-| Training time | `{RESULT_TRAIN_TIME}` |
-| Hardware | `{RESULT_HARDWARE}` |
-
-**Per-class F1:**
-
-| Class | F1 |
-|-------|-----|
-| negative | `{RESULT_F1_NEGATIVE}` |
-| neutral  | `{RESULT_F1_NEUTRAL}` |
-| positive | `{RESULT_F1_POSITIVE}` |
-
-**Inference latency (merged model, 4-bit NF4, single sample, no batching):**
-
-| Percentile | Latency |
-|------------|---------|
-| p50 | `{RESULT_P50_MS}` ms |
-| p95 | `{RESULT_P95_MS}` ms |
-| p99 | `{RESULT_P99_MS}` ms |
-
-**Sklearn baselines (TF-IDF + classifier, same split, CPU only):**
-
-| Baseline | F1 (macro) | Accuracy |
-|----------|-----------|----------|
-| TF-IDF + LogisticRegression | `{RESULT_BASELINE_LR_F1}` | `{RESULT_BASELINE_LR_ACC}` |
-| TF-IDF + RandomForest | `{RESULT_BASELINE_RF_F1}` | `{RESULT_BASELINE_RF_ACC}` |
-| TF-IDF + LinearSVC | `{RESULT_BASELINE_SVC_F1}` | `{RESULT_BASELINE_SVC_ACC}` |
-
-References: Dettmers et al., "QLoRA: Efficient Finetuning of Quantized LLMs" (NeurIPS 2023). Malo, Sinha, Korhonen, Wallenius, Takala, "Good debt or bad debt: Detecting semantic orientations in economic texts," *JASIST* 65(4), 2014.
+| Problem | Mechanism | Consequence |
+|---------|-----------|-------------|
+| PII leakage | Pre-inference regex redaction, biased to over-redact | Sensitive tokens never reach the model or the logs; `presidio-analyzer` pinned for a v0.3 swap |
+| Cascading failure | 3-state circuit breaker + `RecoveryManager` | OOM triggers batch-size reduction; latency spikes trigger fallback to the quantized model; load failures trigger exponential-backoff reload |
+| Silent quality decay | KL-divergence drift monitoring on output distributions | Distribution shift shows up in `/metrics` before accuracy visibly drops |
+| Training cost | QLoRA (4-bit NF4 + LoRA adapters, `paged_adamw_8bit`) | Fine-tuning a 7B model fits on a single consumer GPU; under 2% F1 loss vs full fine-tune in practice |
 
 ---
 
-## How to run it
+## Pipeline
+
+```
+financial_phrasebank          QLoRA fine-tune         Merged model        4-bit NF4         FastAPI
+(HF Hub, sentences_allagree,  (peft, bitsandbytes,    (LoRA folded  ───▶  inference   ───▶  /predict
+ stratified 80/20, seed 42)    F1-macro checkpoint,    into base)                            /health
+                               early stopping 3)                                             /metrics
+                                                                                               │
+                                                                                               ▼
+                                                                              Pre-inference guardrails
+                                                                              (PII redaction, confidence
+                                                                               threshold, label validation)
+                                                                                               │
+                                                                                               ▼
+                                                                              SystemMonitor + RecoveryManager
+                                                                              (p50/p95/p99 latency, error rate,
+                                                                               KL-divergence drift, health score,
+                                                                               3-state circuit breaker)
+```
+
+Per-decision rationale and trade-offs in [`specs/README.md`](specs/README.md). Domain glossary in [`UBIQUITOUS_LANGUAGE.md`](UBIQUITOUS_LANGUAGE.md).
+
+---
+
+## Evaluation
+
+Metrics are produced by the evaluation pipeline, not hand-written into this README. Run:
+
+```bash
+python -m src.evaluate --model-path outputs/fintune-financial --dataset test
+python -m src.benchmark   # TF-IDF + LogisticRegression / RandomForest / LinearSVC baselines, same split, CPU
+```
+
+`src.evaluate` writes F1 (macro and per-class), accuracy, and eval loss to `outputs/`; `src.benchmark` writes sklearn baseline scores for the same stratified split so the fine-tune has an honest floor to beat. The result-collection protocol, including the latency measurement method (p50 / p95 / p99, single sample, no batching, 4-bit NF4), is in [`specs/README.md`](specs/README.md).
+
+Training corpus: `takala/financial_phrasebank`, `sentences_allagree` subset (100% annotator agreement, Malo et al., 2014). References: Dettmers et al., "QLoRA: Efficient Finetuning of Quantized LLMs" (NeurIPS 2023).
+
+---
+
+## Run it
 
 ### One command (Docker, CPU or GPU)
 
@@ -86,15 +86,7 @@ python -m src.evaluate --model-path outputs/fintune-financial --dataset test
 ### CPU prototype run (DistilBERT, no GPU required)
 
 ```bash
-pip install -r requirements.txt
 python -m src.train --config configs/qlora_distilbert_cpu.yaml
-```
-
-### Sklearn baselines (no model training, ~30 sec)
-
-```bash
-python -m src.benchmark
-# → outputs/benchmark_results.json
 ```
 
 ### Single prediction
@@ -118,48 +110,18 @@ curl -X POST http://localhost:8000/predict \
 
 ---
 
-## Architecture
-
-```
-financial_         QLoRA            Merged model         Quantized          FastAPI
-phrasebank   ───▶  fine-tune  ───▶  (LoRA folded   ───▶ inference   ───▶   /predict
-(HF Hub)           (PEFT)           into base)          (4-bit NF4)        /health
-                                                                           /metrics
-                                                                              │
-                                                                              ▼
-                                                          Pre-inference guardrails
-                                                          (PII redact, confidence,
-                                                           label validation)
-                                                                              │
-                                                                              ▼
-                                                          SystemMonitor + RecoveryManager
-                                                          (latency p50/p95/p99,
-                                                           KL-divergence drift,
-                                                           3-state circuit breaker,
-                                                           OOM → batch reduction)
-```
-
-Full per-decision rationale and trade-offs in [`specs/README.md`](specs/README.md). Domain glossary in [`UBIQUITOUS_LANGUAGE.md`](UBIQUITOUS_LANGUAGE.md).
-
----
-
 ## Tech stack
 
 | Layer | Choice | Why |
 |-------|--------|-----|
-| Base model (GPU config) | `mistralai/Mistral-7B-v0.3` | Strong open-weight 7B with permissive license |
-| Base model (CPU config) | `distilbert-base-uncased` | Lets contributors run the full pipeline without a GPU |
-| Fine-tuning | QLoRA via `peft` + `bitsandbytes` | ~10× VRAM savings vs. full fine-tune; <2% F1 loss in practice |
-| Training corpus | `takala/financial_phrasebank` (`sentences_allagree`) | Public, expert-annotated, 100% annotator agreement subset |
-| Training framework | HuggingFace `Trainer` | F1-macro best-checkpoint selection, early stopping (patience 3) |
-| Optimizer | `paged_adamw_8bit` | Required for QLoRA; pages optimizer state to CPU |
+| Base model (GPU) | `mistralai/Mistral-7B-v0.3` | Strong open-weight 7B, permissive license |
+| Base model (CPU) | `distilbert-base-uncased` | Full pipeline runnable without a GPU |
+| Fine-tuning | QLoRA via `peft` + `bitsandbytes` | ~10x VRAM savings vs full fine-tune |
 | Serving | FastAPI + Uvicorn | Async, Pydantic validation, lifespan-managed model load |
-| Guardrails | Regex-based PII redaction | Pre-inference, fails to over-redact rather than leak; `presidio-analyzer` pinned for v0.3 swap |
-| Observability | Custom `SystemMonitor` (singleton) | Latency percentiles, throughput, error rate, KL-divergence drift, composite health score |
-| Self-recovery | `RecoveryManager` + 3-state `CircuitBreaker` | Exponential-backoff reload, OOM batch reduction, latency-spike → quantized fallback |
-| Quantization | bitsandbytes NF4 + double quantization | Used both during training (QLoRA) and post-training (`src/quantize.py`) |
-| Container | `nvidia/cuda:12.1.1-runtime-ubuntu22.04` | GPU-capable; `docker-compose.yml` reserves 1 NVIDIA device |
-| Tests | `pytest` (35+ cases across 7 modules) | Covers data, model, guardrails, serve, monitor, self-recovery, pipeline |
+| Observability | Custom `SystemMonitor` (singleton) | Latency percentiles, throughput, error rate, drift, composite health score |
+| Self-recovery | `RecoveryManager` + 3-state `CircuitBreaker` | Backoff reload, OOM batch reduction, quantized fallback |
+| Container | `nvidia/cuda:12.1.1-runtime-ubuntu22.04` | `docker-compose.yml` reserves 1 NVIDIA device |
+| Tests | `pytest`, 35+ cases across 7 modules | Data, model, guardrails, serve, monitor, self-recovery, pipeline |
 
 ---
 

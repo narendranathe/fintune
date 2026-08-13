@@ -2,11 +2,10 @@
 Tests for the monitoring system including SystemMonitor, metrics, and drift detection.
 """
 
-import unittest
 import threading
-import time
-from unittest.mock import patch, MagicMock
+import unittest
 from collections import deque
+from unittest.mock import MagicMock
 
 # Assuming these are the actual modules to test
 # Adjust imports based on your actual project structure
@@ -38,7 +37,7 @@ class TestSystemMonitor(unittest.TestCase):
         self.mock_monitor.metrics['latency'].append(latency_value)
 
         self.assertEqual(len(self.mock_monitor.metrics['latency']), 1)
-        self.assertEqual(list(self.mock_monitor.metrics['latency'])[0], latency_value)
+        self.assertEqual(next(iter(self.mock_monitor.metrics['latency'])), latency_value)
 
     def test_record_error_count(self):
         """Test recording error count metrics."""
@@ -46,7 +45,7 @@ class TestSystemMonitor(unittest.TestCase):
         self.mock_monitor.metrics['error_count'].append(error_count)
 
         self.assertEqual(len(self.mock_monitor.metrics['error_count']), 1)
-        self.assertEqual(list(self.mock_monitor.metrics['error_count'])[0], error_count)
+        self.assertEqual(next(iter(self.mock_monitor.metrics['error_count'])), error_count)
 
     def test_record_throughput(self):
         """Test recording throughput metrics."""
@@ -54,7 +53,7 @@ class TestSystemMonitor(unittest.TestCase):
         self.mock_monitor.metrics['throughput'].append(throughput_value)
 
         self.assertEqual(len(self.mock_monitor.metrics['throughput']), 1)
-        self.assertEqual(list(self.mock_monitor.metrics['throughput'])[0], throughput_value)
+        self.assertEqual(next(iter(self.mock_monitor.metrics['throughput'])), throughput_value)
 
     def test_health_score_computation(self):
         """Test health score computation based on metrics."""
@@ -87,7 +86,7 @@ class TestSystemMonitor(unittest.TestCase):
         # Should only keep last 100
         self.assertEqual(len(window), 100)
         # First value should be 50 (oldest retained)
-        self.assertEqual(list(window)[0], 50)
+        self.assertEqual(next(iter(window)), 50)
         # Last value should be 149
         self.assertEqual(list(window)[-1], 149)
 

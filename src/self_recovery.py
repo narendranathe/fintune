@@ -9,9 +9,10 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -204,9 +205,9 @@ class RecoveryManager:
 
     def __init__(
         self,
-        policy: Optional[RecoveryPolicy] = None,
-        model_loader: Optional[Callable[[], Any]] = None,
-        quantized_model_loader: Optional[Callable[[], Any]] = None,
+        policy: RecoveryPolicy | None = None,
+        model_loader: Callable[[], Any] | None = None,
+        quantized_model_loader: Callable[[], Any] | None = None,
     ):
         """Initialize recovery manager.
 
@@ -236,7 +237,7 @@ class RecoveryManager:
         self._baseline_confidence = 0.8
 
         # Health check thread
-        self._health_thread: Optional[threading.Thread] = None
+        self._health_thread: threading.Thread | None = None
         self._health_thread_stop = threading.Event()
 
         logger.info("RecoveryManager initialized with policy: %s", self.policy)
@@ -273,8 +274,8 @@ class RecoveryManager:
                 if TORCH_AVAILABLE:
                     self._check_gpu_memory()
 
-            except Exception as e:
-                logger.exception("Error in health check loop: %s", e)
+            except Exception:
+                logger.exception("Error in health check loop")
 
     def handle_model_loading_failure(self, error: Exception) -> bool:
         """Handle model loading failure with retry logic.
@@ -339,25 +340,25 @@ class RecoveryManager:
                 logger.warning("Latency spike detected: p99=%.1fms > threshold=%.1fms (count=%d)",
                              current_p99_ms, threshold, self._latency_spike_count)
 
-                if self._latency_spike_count >= self.policy.latency_spike_duration_samples:
-                    if self.quantized_model_loader:
-                        try:
-                            self.quantized_model_loader()
-                            self._log_recovery_action(
-                                action_type="quantized_model_switch",
-                                reason="Persistent latency spikes detected",
-                                success=True,
-                                details={
-                                    "p99_ms": round(current_p99_ms, 2),
-                                    "threshold_ms": round(threshold, 2),
-                                    "spike_count": self._latency_spike_count,
-                                },
-                            )
-                            logger.info("Switched to quantized model due to latency spikes")
-                            self._latency_spike_count = 0
-                        except Exception as e:
-                            logger.error("Failed to load quantized model: %s", e)
-                            self._circuit_breaker.record_failure()
+                if (self._latency_spike_count >= self.policy.latency_spike_duration_samples
+                        and self.quantized_model_loader):
+                    try:
+                        self.quantized_model_loader()
+                        self._log_recovery_action(
+                            action_type="quantized_model_switch",
+                            reason="Persistent latency spikes detected",
+                            success=True,
+                            details={
+                                "p99_ms": round(current_p99_ms, 2),
+                                "threshold_ms": round(threshold, 2),
+                                "spike_count": self._latency_spike_count,
+                            },
+                        )
+                        logger.info("Switched to quantized model due to latency spikes")
+                        self._latency_spike_count = 0
+                    except Exception as e:
+                        logger.error("Failed to load quantized model: %s", e)
+                        self._circuit_breaker.record_failure()
             else:
                 self._latency_spike_count = max(0, self._latency_spike_count - 1)
 
@@ -518,7 +519,7 @@ class RecoveryManager:
 __all__ = [
     'CircuitBreaker',
     'CircuitState',
+    'RecoveryAction',
     'RecoveryManager',
     'RecoveryPolicy',
-    'RecoveryAction',
 ]
