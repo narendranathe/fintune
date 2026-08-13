@@ -413,8 +413,9 @@ class TestPipelineStats(unittest.TestCase):
 
         self.assertEqual(stats.total_samples, 5)
         self.assertEqual(stats.validation_failures, 1)  # empty string
+        self.assertEqual(stats.samples_after_validation, 4)
         self.assertEqual(stats.duplicates_removed, 1)    # one duplicate
-        self.assertEqual(stats.samples_after_cleaning, 4)
+        self.assertEqual(stats.samples_after_cleaning, 3)
 
     def test_stats_with_sampling(self):
         """Test stats tracking with sampling."""
