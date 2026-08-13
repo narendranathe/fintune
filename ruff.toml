@@ -1,0 +1,6 @@
+[lint]
+# BLE001 (blind except Exception) is ignored on purpose: the recovery manager
+# and model-serving layer are catch-alls by design. A self-healing loop that
+# lets an exception escape stops healing, so these paths log, record the
+# failure, and degrade instead of narrowing the exception type.
+ignore = ["BLE001"]

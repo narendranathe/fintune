@@ -11,8 +11,11 @@ import logging
 import threading
 import time
 from collections import deque
-from dataclasses import asdict, dataclass, field
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import Any
+
+from typing_extensions import Self
 
 logger = logging.getLogger(__name__)
 
@@ -51,10 +54,10 @@ class SystemMonitor:
     drift detection, and resource utilization.
     """
 
-    _instance: Optional[SystemMonitor] = None
+    _instance: SystemMonitor | None = None
     _lock: threading.Lock = threading.Lock()
 
-    def __new__(cls) -> SystemMonitor:
+    def __new__(cls) -> Self:
         """Enforce singleton pattern."""
         if cls._instance is None:
             with cls._lock:
@@ -108,9 +111,9 @@ class SystemMonitor:
         self._gpu_memory_percent = 0.0
 
         # Recovery hooks
-        self._on_drift_detected: Optional[Callable[[HealthMetrics], None]] = None
-        self._on_latency_spike: Optional[Callable[[HealthMetrics], None]] = None
-        self._on_error_spike: Optional[Callable[[HealthMetrics], None]] = None
+        self._on_drift_detected: Callable[[HealthMetrics], None] | None = None
+        self._on_latency_spike: Callable[[HealthMetrics], None] | None = None
+        self._on_error_spike: Callable[[HealthMetrics], None] | None = None
 
         self._initialized = True
         logger.info("SystemMonitor initialized: window_size=%ds, drift_threshold=%.3f",
@@ -192,9 +195,9 @@ class SystemMonitor:
 
     def set_recovery_hooks(
         self,
-        on_drift: Optional[Callable[[HealthMetrics], None]] = None,
-        on_latency_spike: Optional[Callable[[HealthMetrics], None]] = None,
-        on_error_spike: Optional[Callable[[HealthMetrics], None]] = None,
+        on_drift: Callable[[HealthMetrics], None] | None = None,
+        on_latency_spike: Callable[[HealthMetrics], None] | None = None,
+        on_error_spike: Callable[[HealthMetrics], None] | None = None,
     ) -> None:
         """Register recovery action callbacks.
 
@@ -453,7 +456,7 @@ def monitor_request(
                 if hasattr(result, 'confidence'):
                     confidence = result.confidence
                 return result
-            except Exception as e:
+            except Exception:
                 error = True
                 logger.exception("Request failed in monitored endpoint")
                 raise
@@ -480,4 +483,4 @@ def monitor_request(
 # Import math for KL-divergence calculation
 import math
 
-__all__ = ['SystemMonitor', 'HealthMetrics', 'LatencyMetrics', 'monitor_request']
+__all__ = ['HealthMetrics', 'LatencyMetrics', 'SystemMonitor', 'monitor_request']

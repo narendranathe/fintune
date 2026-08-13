@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import argparse
 import logging
-from pathlib import Path
 
-import yaml
 import numpy as np
+import yaml
+from transformers import EarlyStoppingCallback, Trainer, TrainingArguments
+
 from evaluate import load as load_metric
-from transformers import TrainingArguments, Trainer, EarlyStoppingCallback
 
 from .data import build_tokenizer, load_financial_phrasebank, tokenize_dataset
 from .model import (

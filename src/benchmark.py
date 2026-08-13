@@ -9,7 +9,7 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
@@ -40,11 +40,11 @@ class SklearnBaselineBenchmark:
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.results: Dict[str, Any] = {}
+        self.results: dict[str, Any] = {}
 
     def load_financial_phrasebank(
         self, train_size: float = 0.8, seed: int = 42
-    ) -> Tuple[List[str], List[str], List[str], List[str]]:
+    ) -> tuple[list[str], list[str], list[str], list[str]]:
         """Load financial_phrasebank from HuggingFace datasets.
 
         Args:
@@ -148,10 +148,10 @@ class SklearnBaselineBenchmark:
     def evaluate_model(
         self,
         model: Pipeline,
-        X_test: List[str],
-        y_test: List[str],
+        X_test: list[str],
+        y_test: list[str],
         model_name: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Evaluate model on test set.
 
         Args:
@@ -208,9 +208,9 @@ class SklearnBaselineBenchmark:
     def benchmark_inference_latency(
         self,
         model: Pipeline,
-        X_test: List[str],
+        X_test: list[str],
         num_samples: int = 100,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Benchmark inference latency per sample.
 
         Args:
@@ -242,7 +242,7 @@ class SklearnBaselineBenchmark:
         }
 
     def save_confusion_matrix_plot(
-        self, conf_matrix: List[List[int]], labels: List[str], model_name: str
+        self, conf_matrix: list[list[int]], labels: list[str], model_name: str
     ) -> str:
         """Save confusion matrix as a plot image.
 
@@ -283,7 +283,7 @@ class SklearnBaselineBenchmark:
             return ""
 
     def save_classification_report(
-        self, class_report: Dict[str, Any], model_name: str
+        self, class_report: dict[str, Any], model_name: str
     ) -> str:
         """Save classification report as text file.
 
@@ -311,13 +311,13 @@ class SklearnBaselineBenchmark:
 
             # Macro/weighted averages
             if "macro avg" in class_report:
-                f.write(f"\nMacro Average:\n")
+                f.write("\nMacro Average:\n")
                 f.write(f"  Precision: {class_report['macro avg'].get('precision', 0):.4f}\n")
                 f.write(f"  Recall:    {class_report['macro avg'].get('recall', 0):.4f}\n")
                 f.write(f"  F1-Score:  {class_report['macro avg'].get('f1-score', 0):.4f}\n")
 
             if "weighted avg" in class_report:
-                f.write(f"\nWeighted Average:\n")
+                f.write("\nWeighted Average:\n")
                 f.write(f"  Precision: {class_report['weighted avg'].get('precision', 0):.4f}\n")
                 f.write(f"  Recall:    {class_report['weighted avg'].get('recall', 0):.4f}\n")
                 f.write(f"  F1-Score:  {class_report['weighted avg'].get('f1-score', 0):.4f}\n")
@@ -326,7 +326,7 @@ class SklearnBaselineBenchmark:
         return str(filepath)
 
 
-def run_sklearn_baseline() -> Dict[str, Any]:
+def run_sklearn_baseline() -> dict[str, Any]:
     """Run all sklearn baselines and return comprehensive results.
 
     Returns:

@@ -2,12 +2,10 @@
 Tests for self-recovery system including CircuitBreaker and RecoveryPolicy.
 """
 
-import unittest
 import time
-from unittest.mock import patch, MagicMock
-from enum import Enum
+import unittest
 from dataclasses import dataclass, field
-from typing import List
+from enum import Enum
 
 
 class CircuitState(Enum):
@@ -25,7 +23,7 @@ class RecoveryPolicy:
     half_open_max_attempts: int = 3
     backoff_multiplier: float = 2.0
     log_recovery_actions: bool = True
-    recovery_actions: List[str] = field(default_factory=list)
+    recovery_actions: list[str] = field(default_factory=list)
 
 
 class CircuitBreaker:
