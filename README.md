@@ -66,6 +66,19 @@ Training corpus: `takala/financial_phrasebank`, `sentences_allagree` subset (100
 
 ---
 
+## Known weaknesses
+
+From `specs/README.md`, which is the decision log for this repo:
+
+- The `account_number` PII regex matches any 8 to 17 digit string, so it redacts order IDs, ticker counts, and ZIP+4 codes along with account numbers. That is deliberate (over-redact beats leak in v0.x), but `presidio-analyzer` is already pinned in `requirements.txt` and not wired in. The swap is the first thing a v0.3 should do.
+- The drift-detection baseline lives in memory. `SystemMonitor.set_baseline_distribution()` runs at startup, so every restart silently resets the reference distribution and the KL-divergence monitor is blind until it rebuilds. It should load from disk.
+- The latency numbers in `outputs/` are CPU-only, from the DistilBERT config. There are no published p50/p95/p99 figures for the merged Mistral model on a T4/L4/A10 yet.
+- The training corpus is 4,845 sentences of news prose. It will not transfer to 10-K risk sections or earnings-call transcripts without a second fine-tune stage, which is planned and not done.
+- `/predict` has no rate limiting. Fine on a laptop, not fine with more than one client.
+- v0.2.1 exists because a HuggingFace `datasets` loader change broke training data loading mid-project; the fix was `trust_remote_code=True` in `src/data.py`. Pin your data loader versions.
+
+---
+
 ## Run it
 
 ### One command (Docker, CPU or GPU)
